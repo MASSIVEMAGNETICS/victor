@@ -8,16 +8,19 @@ import numpy as np
 import hashlib
 from typing import List, Optional
 
+
 class HolographicTokenizer:
     """
     Encodes the entire context of a text into every token.
 
     Standard tokenizers are blind; they see words, not context. This tokenizer
     creates a "holographic" representation where each token is a projection
-    of the entire input text, fused with word-specific and positional information.
-    This allows a model to access global context from any single token.
+    of the entire input text, fused with word-specific and positional
+    information. This allows a model to access global context from any
+    single token.
     """
-    def __init__(self, vector_dim: int = 128, projection_seed: Optional[int] = None):
+    def __init__(self, vector_dim: int = 128,
+                 projection_seed: Optional[int] = None):
         """
         Initializes the HolographicTokenizer.
 
@@ -32,7 +35,8 @@ class HolographicTokenizer:
         # A fixed projection matrix for creating the "hologram".
         # Seeding this makes the tokenizer deterministic and reproducible.
         rng = np.random.default_rng(projection_seed)
-        self.projection_matrix: np.ndarray = rng.standard_normal((vector_dim, vector_dim))
+        self.projection_matrix: np.ndarray = rng.standard_normal(
+            (vector_dim, vector_dim))
 
     def _text_to_base_vector(self, text: str) -> np.ndarray:
         """
@@ -86,7 +90,9 @@ class HolographicTokenizer:
             positional_vector = self._text_to_base_vector(f"pos:{i}")
 
             # 4. Fuse them all: this is the holographic principle.
-            fused_vector = word_vector + global_context_vector + positional_vector
+            fused_vector = (word_vector +
+                            global_context_vector +
+                            positional_vector)
 
             # 5. Project it to create interference patterns (the hologram).
             holographic_token = fused_vector @ self.projection_matrix
@@ -102,6 +108,7 @@ class HolographicTokenizer:
 
         return holographic_tokens
 
+
 # --- DEPLOYMENT ---
 if __name__ == "__main__":
     print("\n--- BANDO'S HT DEPLOYMENT TEST ---")
@@ -109,7 +116,7 @@ if __name__ == "__main__":
     ht = HolographicTokenizer(vector_dim=64, projection_seed=42)
 
     sentence1 = "Fractal logic is the only path forward"
-    sentence2 = "Fractal ethics is the only path forward" # Only one word is different
+    sentence2 = "Fractal ethics is the only path forward"  # One word is different
 
     tokens1 = ht.tokenize(sentence1)
     tokens2 = ht.tokenize(sentence2)
@@ -123,16 +130,20 @@ if __name__ == "__main__":
     forward_token_2 = tokens2[-1]
 
     print("\n[+] Comparing tokens for 'Fractal':")
-    print(f"    Sentence 1 'Fractal' (first 5 dims): {np.round(fractal_token_1[:5], 3)}")
-    print(f"    Sentence 2 'Fractal' (first 5 dims): {np.round(fractal_token_2[:5], 3)}")
+    print(f"    Sentence 1 'Fractal' (first 5 dims): "
+          f"{np.round(fractal_token_1[:5], 3)}")
+    print(f"    Sentence 2 'Fractal' (first 5 dims): "
+          f"{np.round(fractal_token_2[:5], 3)}")
 
     # Calculate cosine similarity
     similarity = np.dot(fractal_token_1, fractal_token_2)
     print(f"    -> Cosine Similarity: {similarity:.4f}")
-    print("    -> NOTE: The vectors are different because the global context is different.")
+    print("    -> NOTE: The vectors are different because of the global context.")
 
-    print("\n[+] The word 'forward' has a different meaning because of the context.")
-    print(f"    Sentence 1 'forward' (first 5 dims): {np.round(forward_token_1[:5], 3)}")
-    print(f"    Sentence 2 'forward' (first 5 dims): {np.round(forward_token_2[:5], 3)}")
+    print("\n[+] The word 'forward' has a different meaning due to context.")
+    print(f"    Sentence 1 'forward' (first 5 dims): "
+          f"{np.round(forward_token_1[:5], 3)}")
+    print(f"    Sentence 2 'forward' (first 5 dims): "
+          f"{np.round(forward_token_2[:5], 3)}")
 
     print("\n--- HT TEST COMPLETE ---")

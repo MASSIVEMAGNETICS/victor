@@ -3,15 +3,16 @@ import numpy as np
 import sys
 import os
 
-# Add the root directory to the Python path
+# Add the root directory to the Python path to enable imports from the source
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from holographic_tokenizer import HolographicTokenizer
 
+
 class TestHolographicTokenizer(unittest.TestCase):
 
     def test_initialization(self):
-        """Test if the tokenizer initializes with the correct vector dimension."""
+        """Test if the tokenizer initializes correctly."""
         tokenizer = HolographicTokenizer(vector_dim=128, projection_seed=42)
         self.assertEqual(tokenizer.vector_dim, 128)
         self.assertEqual(tokenizer.projection_matrix.shape, (128, 128))
@@ -33,8 +34,9 @@ class TestHolographicTokenizer(unittest.TestCase):
         self.assertAlmostEqual(np.linalg.norm(tokens[0]), 1.0, places=5)
 
     def test_determinism(self):
-        """Test if the tokenizer produces the same tokens for the same input and seed."""
-        # Using the same seed should produce the same projection matrix and thus the same tokens.
+        """Test tokenizer produces same tokens for same input and seed."""
+        # Using the same seed should produce the same projection matrix and
+        # thus the same tokens.
         tokenizer1 = HolographicTokenizer(vector_dim=64, projection_seed=1337)
         tokenizer2 = HolographicTokenizer(vector_dim=64, projection_seed=1337)
 
@@ -42,7 +44,8 @@ class TestHolographicTokenizer(unittest.TestCase):
         tokens1 = tokenizer1.tokenize(text)
         tokens2 = tokenizer2.tokenize(text)
 
-        self.assertTrue(np.allclose(tokens1, tokens2, atol=1e-6), "Tokens should be identical for the same seed.")
+        self.assertTrue(np.allclose(tokens1, tokens2, atol=1e-6),
+                        "Tokens should be identical for the same seed.")
 
     def test_holographic_principle(self):
         """Test that a word's token is different in different contexts."""
@@ -60,20 +63,24 @@ class TestHolographicTokenizer(unittest.TestCase):
 
         # Calculate cosine similarity. Should not be close to 1.
         similarity = np.dot(run_token_1, run_token_2)
-        self.assertLess(similarity, 0.99, "Tokens for the same word in different contexts should not be highly similar.")
+        self.assertLess(similarity, 0.99,
+                        "Tokens for the same word in different contexts "
+                        "should not be highly similar.")
 
     def test_unseeded_behavior(self):
         """Test that different instances without a seed produce different tokens."""
         # Without a seed, the projection matrix should be different each time.
-        tokenizer1 = HolographicTokenizer(vector_dim=64) # No seed
-        tokenizer2 = HolographicTokenizer(vector_dim=64) # No seed
+        tokenizer1 = HolographicTokenizer(vector_dim=64)  # No seed
+        tokenizer2 = HolographicTokenizer(vector_dim=64)  # No seed
 
         text = "the same input text"
         tokens1 = tokenizer1.tokenize(text)
         tokens2 = tokenizer2.tokenize(text)
 
         # It's astronomically unlikely for them to be the same.
-        self.assertFalse(np.allclose(tokens1, tokens2, atol=1e-6), "Tokens should be different for unseeded tokenizers.")
+        self.assertFalse(np.allclose(tokens1, tokens2, atol=1e-6),
+                         "Tokens should be different for unseeded tokenizers.")
+
 
 if __name__ == '__main__':
     unittest.main()

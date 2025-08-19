@@ -8,9 +8,11 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from typing import Any, Set, Optional
 
+
 class CausalInferenceChains:
     """
-    Builds and analyzes a causal graph to distinguish causation from correlation.
+    Builds and analyzes a causal graph to distinguish causation from
+    correlation.
 
     This class uses a directed acyclic graph (DAG) to represent causal
     relationships between variables. It allows for identifying common causes
@@ -35,8 +37,8 @@ class CausalInferenceChains:
         """
         Finds common ancestors (causes) between two effects in the causal graph.
 
-        This method is useful for identifying potential confounding variables that
-        might explain a correlation between two observed effects.
+        This method is useful for identifying potential confounding variables
+        that might explain a correlation between two observed effects.
 
         Args:
             effect1 (Any): The first observed effect node.
@@ -60,11 +62,12 @@ class CausalInferenceChains:
         Simulates a causal intervention using Pearl's do-calculus.
 
         This operation creates a new graph where all causal links pointing into
-        the `node_to_intervene` are severed. This simulates a scenario where the
-        node's value is forced, independent of its usual causes.
+        the `node_to_intervene` are severed. This simulates a scenario where
+        the node's value is forced, independent of its usual causes.
 
         Args:
-            node_to_intervene (Any): The node on which to perform the intervention.
+            node_to_intervene (Any): The node on which to perform the
+                intervention.
 
         Returns:
             nx.DiGraph: A new graph representing the state of the world after
@@ -85,13 +88,22 @@ class CausalInferenceChains:
         Draws the causal graph and either shows it or saves it to a file.
 
         Args:
-            output_path (Optional[str]): The file path to save the visualization.
-                If None, the plot is displayed directly using plt.show().
+            output_path (Optional[str]): The file path to save the
+                visualization. If None, the plot is displayed directly
+                using plt.show().
         """
         plt.figure(figsize=(10, 7))
         pos = nx.spring_layout(self.graph, seed=42)
-        nx.draw(self.graph, pos, with_labels=True, node_size=2500, node_color="skyblue",
-                font_size=10, font_weight="bold", arrowsize=20)
+        nx.draw(
+            self.graph,
+            pos,
+            with_labels=True,
+            node_size=2500,
+            node_color="skyblue",
+            font_size=10,
+            font_weight="bold",
+            arrowsize=20
+        )
         plt.title("Causal Inference Graph")
 
         if output_path:
@@ -122,17 +134,32 @@ if __name__ == "__main__":
     effect_B = "Shark Attacks Increase"
     common_causes = cic.find_common_cause(effect_A, effect_B)
     print(f"    -> Query: Does '{effect_A}' cause '{effect_B}'?")
-    print(f"    -> Analysis: No direct path. Common Causes found: {common_causes}")
+    analysis_message = (
+        f"    -> Analysis: No direct path. "
+        f"Common Causes found: {common_causes}"
+    )
+    print(analysis_message)
 
     # --- Scenario 2: Intervention ---
     print("\n[CIC] Scenario 2: Intervention")
     # What if we artificially boost ice cream sales in the winter?
-    # A dumb model would predict more shark attacks. A causal model knows better.
-    intervened_reality = cic.do_calculus_intervention("Ice Cream Sales Increase")
+    # A dumb model would predict more shark attacks. A causal model knows
+    # better.
+    intervened_reality = cic.do_calculus_intervention(
+        "Ice Cream Sales Increase"
+    )
 
     # In the new reality, does the boost affect shark attacks?
-    has_path = nx.has_path(intervened_reality, "Ice Cream Sales Increase", "Shark Attacks Increase")
-    print(f"    -> In the intervened reality, is there a causal path from ice cream to shark attacks? {'Yes' if has_path else 'No'}")
+    has_path = nx.has_path(
+        intervened_reality,
+        "Ice Cream Sales Increase",
+        "Shark Attacks Increase"
+    )
+    intervention_message = (
+        f"    -> In the intervened reality, is there a causal path from "
+        f"ice cream to shark attacks? {'Yes' if has_path else 'No'}"
+    )
+    print(intervention_message)
 
     print("\n[CIC] Visualizing the map of reality...")
     # Save the graph to a file instead of showing it directly

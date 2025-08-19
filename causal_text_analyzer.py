@@ -1,8 +1,8 @@
 import re
-from typing import List
+import networkx as nx
 
-from holographic_tokenizer import HolographicTokenizer
 from causal_inference_chains import CausalInferenceChains
+
 
 class CausalTextAnalyzer:
     """
@@ -71,6 +71,7 @@ class CausalTextAnalyzer:
         # Lowercase, remove leading/trailing whitespace.
         return phrase.lower().strip()
 
+
 # --- DEPLOYMENT ---
 if __name__ == '__main__':
     print("\n--- BANDO'S CAUSAL TEXT ANALYZER DEPLOYMENT TEST ---")
@@ -98,6 +99,11 @@ if __name__ == '__main__':
         "the heavy rainfall",
         "major traffic delays"
     )
-    print(f"\n[+] Verification: Is there a causal path from 'the heavy rainfall' to 'major traffic delays'? {'Yes' if path_exists else 'No'}")
+    verification_message = (
+        f"\n[+] Verification: Is there a causal path from "
+        f"'the heavy rainfall' to 'major traffic delays'? "
+        f"{'Yes' if path_exists else 'No'}"
+    )
+    print(verification_message)
 
     print("\n--- ANALYZER TEST COMPLETE ---")

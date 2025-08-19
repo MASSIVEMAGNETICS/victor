@@ -1,13 +1,14 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import networkx as nx
 import sys
 import os
 
-# Add the root directory to the Python path
+# Add the root directory to the Python path to enable imports from the source
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from causal_inference_chains import CausalInferenceChains
+
 
 class TestCausalInferenceChains(unittest.TestCase):
 
@@ -28,7 +29,7 @@ class TestCausalInferenceChains(unittest.TestCase):
         self.assertTrue(self.cic.graph.has_edge("A", "B"))
         self.assertTrue(self.cic.graph.has_edge("B", "C"))
         self.assertTrue(self.cic.graph.has_edge("A", "D"))
-        self.assertFalse(self.cic.graph.has_edge("C", "A")) # Should be directed
+        self.assertFalse(self.cic.graph.has_edge("C", "A"))  # Should be directed
 
     def test_find_common_cause_success(self):
         """Test finding a common cause that exists."""

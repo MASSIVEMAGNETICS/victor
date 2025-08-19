@@ -2,11 +2,12 @@ import unittest
 import sys
 import os
 
-# Add the root directory to the Python path
+# Add the root directory to the Python path to enable imports from the source
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from causal_inference_chains import CausalInferenceChains
 from causal_text_analyzer import CausalTextAnalyzer
+
 
 class TestCausalTextAnalyzer(unittest.TestCase):
 
@@ -38,7 +39,8 @@ class TestCausalTextAnalyzer(unittest.TestCase):
 
         node1 = "a software bug"
         node2_from_sent1 = "a system crash"
-        node2_from_sent2 = "the system crash" # Different string due to article "the" vs "a"
+        # Different string due to article "the" vs "a"
+        node2_from_sent2 = "the system crash"
         node3 = "data loss"
 
         # Check that the first link from the first sentence is correct
@@ -80,15 +82,18 @@ class TestCausalTextAnalyzer(unittest.TestCase):
 
     def test_complex_sentence_structure(self):
         """Test with a more complex sentence structure."""
-        # This test might fail with the current simple regex, which is expected.
-        # It documents a limitation of the current implementation.
-        text = "Because of the power outage, the servers shut down, which resulted in the website going offline."
+        # This test might fail with the current simple regex, which is
+        # expected. It documents a limitation of the current implementation.
+        text = ("Because of the power outage, the servers shut down, which "
+                "resulted in the website going offline.")
         self.analyzer.analyze_text(text)
 
         # The current implementation will likely not parse this correctly.
-        # A more advanced parser (e.g., using NLP libraries like spaCy) would be needed.
-        # For now, we'll assert that it doesn't create incorrect links.
-        self.assertFalse(self.cic.graph.has_edge("the servers shut down, which", "the website going offline"))
+        # A more advanced parser (e.g., using NLP libraries like spaCy) would
+        # be needed. For now, we'll assert that it doesn't create
+        # incorrect links.
+        self.assertFalse(self.cic.graph.has_edge(
+            "the servers shut down, which", "the website going offline"))
 
 
 if __name__ == '__main__':
