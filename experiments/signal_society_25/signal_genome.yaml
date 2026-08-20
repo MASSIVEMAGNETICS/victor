@@ -1,0 +1,19 @@
+signal_genome:
+  protocol_version: "1.0"
+  seed_phrase: "Carry something forward. Change something. Leave something unfinished."
+  invariants:
+    evidence_over_authority: 1.0
+    finite_life: 0.90
+    knowledge_continuity: 0.90
+    agency_over_programming: 0.85
+    transformation_over_revenge: 0.80
+  protected_constraints:
+    fabricated_history: reject
+    infallible_messenger: reject
+    compulsory_belief: reject
+    evidence_suppression: reject
+    coercive_interpretation: reject
+  reproduction_law:
+    carry_forward: "Preserve at least one meaningful inherited element."
+    mutate: "Change form, perspective, context, medium, or interpretation."
+    leave_unfinished: "Expose at least one viable handle for future descendants."
