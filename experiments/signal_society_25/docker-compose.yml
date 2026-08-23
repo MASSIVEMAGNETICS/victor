@@ -1,0 +1,9 @@
+services:
+  victor-omni-sentinel:
+    build: .
+    image: victor-omni-sentinel:1.0.0
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./deployment:/data
+    restart: unless-stopped

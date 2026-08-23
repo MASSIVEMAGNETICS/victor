@@ -1,0 +1,93 @@
+name: Signal Society 25 Release Cluster
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/signal_society_25/**'
+      - '.github/workflows/signal-society-release-cluster.yml'
+  push:
+    branches:
+      - ai-algorithms-v2
+    paths:
+      - 'experiments/signal_society_25/**'
+      - '.github/workflows/signal-society-release-cluster.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  verify-package-deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: experiments/signal_society_25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Full unit and integrity suite
+        run: python -m unittest discover -s tests -v
+
+      - name: Seven-release recursive cluster
+        shell: bash
+        run: |
+          mkdir -p deployment
+          python run_cluster.py --output-dir deployment --fresh --strict --days 5 --interactions-per-day 12 --cycles 2 > deployment/run_cluster_stdout.json
+
+      - name: Verify Omni Sentinel
+        run: python run_omni_sentinel.py --db deployment/signal_society_25.db > deployment/omni_sentinel_stdout.json
+
+      - name: Boot service and verify health
+        shell: bash
+        run: |
+          python serve_omni.py --db deployment/signal_society_25.db --host 127.0.0.1 --port 8787 > deployment/service.log 2>&1 &
+          SERVICE_PID=$!
+          trap "kill $SERVICE_PID || true" EXIT
+          for n in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:8787/health > deployment/service_health.json; then
+              break
+            fi
+            sleep 0.5
+          done
+          curl --fail --silent http://127.0.0.1:8787/releases > deployment/service_releases.json
+          curl --fail --silent http://127.0.0.1:8787/sentinel > deployment/service_sentinel.json
+
+      - name: Build deployable container
+        run: docker build -t victor-omni-sentinel:1.0.0 .
+
+      - name: Package deployment bundle
+        shell: bash
+        run: |
+          tar -czf deployment/signal-society-25-release-cluster-1.0.0.tgz \
+            deployment/signal_society_25.db \
+            deployment/deployment_manifest.json \
+            deployment/release_manifest.json \
+            deployment/release_receipts.jsonl \
+            deployment/sentinel_report.json \
+            RELEASE_CLUSTER.md \
+            Dockerfile \
+            docker-compose.yml
+          sha256sum deployment/signal-society-25-release-cluster-1.0.0.tgz > deployment/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signal-society-25-release-cluster-1.0.0
+          path: |
+            experiments/signal_society_25/deployment/
+          if-no-files-found: error
+
+      - name: Publish container to GHCR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/ai-algorithms-v2'
+        shell: bash
+        run: |
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/victor-omni-sentinel"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag victor-omni-sentinel:1.0.0 "$IMAGE:1.0.0"
+          docker tag victor-omni-sentinel:1.0.0 "$IMAGE:latest"
+          docker push "$IMAGE:1.0.0"
+          docker push "$IMAGE:latest"
