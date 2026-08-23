@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -50,7 +50,9 @@ def serve(db: str | Path, host: str="0.0.0.0", port: int=8787, seed: int=25, see
             self.end_headers(); self.wfile.write(body)
         def log_message(self, fmt, *args):
             return
-    server=ThreadingHTTPServer((host,int(port)),Handler)
+    # Single-threaded by design: SQLite owns the connection in this service
+    # thread, avoiding cross-thread connection use while the API is read-only.
+    server=HTTPServer((host,int(port)),Handler)
     try:
         server.serve_forever()
     finally:
