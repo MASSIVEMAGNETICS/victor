@@ -6,49 +6,64 @@ import sqlite3
 from dataclasses import asdict
 from pathlib import Path
 
-VERSION="0.2.0"
-
+VERSION="0.3.0"
 
 def canonical_json(value):
     return json.dumps(value,sort_keys=True,separators=(",",":"),ensure_ascii=False)
 
-
 def _hash(value):
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
-
 SCHEMA="""
-CREATE TABLE agents(agent_id TEXT PRIMARY KEY,profile_json TEXT NOT NULL,self_narrative TEXT NOT NULL DEFAULT '',learning_version INTEGER NOT NULL DEFAULT 0);
-CREATE TABLE schedules(agent_id TEXT,block_order INTEGER,start_hour INTEGER,end_hour INTEGER,activity TEXT,location TEXT,PRIMARY KEY(agent_id,block_order));
-CREATE TABLE events(sequence INTEGER PRIMARY KEY,event_id TEXT UNIQUE,tick INTEGER,day INTEGER,event_type TEXT,actor_id TEXT,target_id TEXT,payload_json TEXT,previous_chain_hash TEXT,event_hash TEXT,chain_hash TEXT UNIQUE);
-CREATE TABLE informatrons(informatron_id TEXT PRIMARY KEY,tick INTEGER,agent_id TEXT,kind TEXT,subject TEXT,predicate TEXT,object_json TEXT,evidence_event_id TEXT,confidence REAL,provenance_json TEXT);
-CREATE TABLE memories(memory_id TEXT PRIMARY KEY,agent_id TEXT,memory_type TEXT,source_event_id TEXT,content TEXT,salience REAL,confidence REAL,tick_created INTEGER);
-CREATE TABLE beliefs(agent_id TEXT,belief_key TEXT,belief_value_json TEXT,confidence REAL,source_event_id TEXT,tick_updated INTEGER,PRIMARY KEY(agent_id,belief_key));
-CREATE TABLE relationships(source_agent_id TEXT,target_agent_id TEXT,trust REAL,familiarity REAL,last_tick INTEGER,PRIMARY KEY(source_agent_id,target_agent_id));
-CREATE TABLE questions(question_id TEXT PRIMARY KEY,agent_id TEXT,question TEXT,status TEXT,answer TEXT,source_event_id TEXT,resolved_event_id TEXT,tick_created INTEGER,tick_resolved INTEGER);
-CREATE TABLE artifacts(artifact_id TEXT PRIMARY KEY,creator_agent_id TEXT,medium TEXT,content TEXT,parent_artifact_id TEXT,inherited_json TEXT,mutations_json TEXT,open_handle TEXT,tick_created INTEGER,canonical INTEGER,canon_reasons_json TEXT);
-CREATE TABLE awareness(agent_id TEXT,artifact_id TEXT,first_tick INTEGER,source_event_id TEXT,PRIMARY KEY(agent_id,artifact_id));
-CREATE TABLE learning_examples(example_id TEXT PRIMARY KEY,agent_id TEXT,task_type TEXT,input_json TEXT,target_json TEXT,source_event_id TEXT,verified INTEGER,quality REAL,tick_created INTEGER);
-CREATE TABLE audio_segments(audio_id TEXT PRIMARY KEY,event_id TEXT,speaker_agent_id TEXT,transcript TEXT,source_path TEXT,start_ms INTEGER,end_ms INTEGER,sha256 TEXT);
-CREATE TABLE agent_learning_state(agent_id TEXT PRIMARY KEY,experience_count INTEGER DEFAULT 0,prediction_total INTEGER DEFAULT 0,prediction_correct INTEGER DEFAULT 0,share_bias REAL DEFAULT 0.0,question_bias REAL DEFAULT 0.0,adaptation_score REAL DEFAULT 0.0,last_tick INTEGER DEFAULT 0);
-CREATE TABLE version_history(version_seq INTEGER PRIMARY KEY AUTOINCREMENT,version TEXT UNIQUE,change_json TEXT,previous_version_hash TEXT,version_hash TEXT UNIQUE);
-CREATE INDEX idx_events_actor ON events(actor_id,tick);
-CREATE INDEX idx_inf_agent ON informatrons(agent_id,tick);
-CREATE INDEX idx_memory_agent ON memories(agent_id,tick_created);
-CREATE TRIGGER events_no_update BEFORE UPDATE ON events BEGIN SELECT RAISE(ABORT,'events are append-only'); END;
-CREATE TRIGGER events_no_delete BEFORE DELETE ON events BEGIN SELECT RAISE(ABORT,'events are append-only'); END;
-CREATE TRIGGER inf_no_update BEFORE UPDATE ON informatrons BEGIN SELECT RAISE(ABORT,'informatrons are append-only'); END;
-CREATE TRIGGER inf_no_delete BEFORE DELETE ON informatrons BEGIN SELECT RAISE(ABORT,'informatrons are append-only'); END;
-CREATE TRIGGER memories_no_update BEFORE UPDATE ON memories BEGIN SELECT RAISE(ABORT,'memories are append-only'); END;
-CREATE TRIGGER memories_no_delete BEFORE DELETE ON memories BEGIN SELECT RAISE(ABORT,'memories are append-only'); END;
-CREATE TRIGGER artifacts_no_update BEFORE UPDATE ON artifacts BEGIN SELECT RAISE(ABORT,'artifacts are append-only'); END;
-CREATE TRIGGER artifacts_no_delete BEFORE DELETE ON artifacts BEGIN SELECT RAISE(ABORT,'artifacts are append-only'); END;
-CREATE TRIGGER learning_no_update BEFORE UPDATE ON learning_examples BEGIN SELECT RAISE(ABORT,'learning examples are append-only'); END;
-CREATE TRIGGER learning_no_delete BEFORE DELETE ON learning_examples BEGIN SELECT RAISE(ABORT,'learning examples are append-only'); END;
-CREATE TRIGGER versions_no_update BEFORE UPDATE ON version_history BEGIN SELECT RAISE(ABORT,'version history is append-only'); END;
-CREATE TRIGGER versions_no_delete BEFORE DELETE ON version_history BEGIN SELECT RAISE(ABORT,'version history is append-only'); END;
+CREATE TABLE IF NOT EXISTS agents(agent_id TEXT PRIMARY KEY,profile_json TEXT NOT NULL,self_narrative TEXT NOT NULL DEFAULT '',learning_version INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS schedules(agent_id TEXT,block_order INTEGER,start_hour INTEGER,end_hour INTEGER,activity TEXT,location TEXT,PRIMARY KEY(agent_id,block_order));
+CREATE TABLE IF NOT EXISTS events(sequence INTEGER PRIMARY KEY,event_id TEXT UNIQUE,tick INTEGER,day INTEGER,event_type TEXT,actor_id TEXT,target_id TEXT,payload_json TEXT,previous_chain_hash TEXT,event_hash TEXT,chain_hash TEXT UNIQUE);
+CREATE TABLE IF NOT EXISTS informatrons(informatron_id TEXT PRIMARY KEY,tick INTEGER,agent_id TEXT,kind TEXT,subject TEXT,predicate TEXT,object_json TEXT,evidence_event_id TEXT,confidence REAL,provenance_json TEXT);
+CREATE TABLE IF NOT EXISTS memories(memory_id TEXT PRIMARY KEY,agent_id TEXT,memory_type TEXT,source_event_id TEXT,content TEXT,salience REAL,confidence REAL,tick_created INTEGER);
+CREATE TABLE IF NOT EXISTS beliefs(agent_id TEXT,belief_key TEXT,belief_value_json TEXT,confidence REAL,source_event_id TEXT,tick_updated INTEGER,PRIMARY KEY(agent_id,belief_key));
+CREATE TABLE IF NOT EXISTS relationships(source_agent_id TEXT,target_agent_id TEXT,trust REAL,familiarity REAL,last_tick INTEGER,PRIMARY KEY(source_agent_id,target_agent_id));
+CREATE TABLE IF NOT EXISTS questions(question_id TEXT PRIMARY KEY,agent_id TEXT,question TEXT,status TEXT,answer TEXT,source_event_id TEXT,resolved_event_id TEXT,tick_created INTEGER,tick_resolved INTEGER);
+CREATE TABLE IF NOT EXISTS artifacts(artifact_id TEXT PRIMARY KEY,creator_agent_id TEXT,medium TEXT,content TEXT,parent_artifact_id TEXT,inherited_json TEXT,mutations_json TEXT,open_handle TEXT,tick_created INTEGER,canonical INTEGER,canon_reasons_json TEXT);
+CREATE TABLE IF NOT EXISTS awareness(agent_id TEXT,artifact_id TEXT,first_tick INTEGER,source_event_id TEXT,PRIMARY KEY(agent_id,artifact_id));
+CREATE TABLE IF NOT EXISTS learning_examples(example_id TEXT PRIMARY KEY,agent_id TEXT,task_type TEXT,input_json TEXT,target_json TEXT,source_event_id TEXT,verified INTEGER,quality REAL,tick_created INTEGER);
+CREATE TABLE IF NOT EXISTS audio_segments(audio_id TEXT PRIMARY KEY,event_id TEXT,speaker_agent_id TEXT,transcript TEXT,source_path TEXT,start_ms INTEGER,end_ms INTEGER,sha256 TEXT);
+CREATE TABLE IF NOT EXISTS agent_learning_state(agent_id TEXT PRIMARY KEY,experience_count INTEGER DEFAULT 0,prediction_total INTEGER DEFAULT 0,prediction_correct INTEGER DEFAULT 0,share_bias REAL DEFAULT 0.0,question_bias REAL DEFAULT 0.0,adaptation_score REAL DEFAULT 0.0,last_tick INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS version_history(version_seq INTEGER PRIMARY KEY AUTOINCREMENT,version TEXT UNIQUE,change_json TEXT,previous_version_hash TEXT,version_hash TEXT UNIQUE);
+CREATE TABLE IF NOT EXISTS simulation_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS learning_history(
+    sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+    history_id TEXT UNIQUE,
+    agent_id TEXT NOT NULL,
+    tick INTEGER NOT NULL,
+    day INTEGER NOT NULL,
+    source_event_id TEXT,
+    payload_json TEXT NOT NULL,
+    previous_hash TEXT NOT NULL,
+    entry_hash TEXT UNIQUE NOT NULL
+);
+CREATE TABLE IF NOT EXISTS experience_snapshots(
+    snapshot_id TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    tick INTEGER NOT NULL,
+    day INTEGER NOT NULL,
+    state_json TEXT NOT NULL,
+    source_history_count INTEGER NOT NULL,
+    previous_snapshot_hash TEXT NOT NULL,
+    snapshot_hash TEXT UNIQUE NOT NULL,
+    UNIQUE(agent_id,version)
+);
+CREATE INDEX IF NOT EXISTS idx_events_actor ON events(actor_id,tick);
+CREATE INDEX IF NOT EXISTS idx_inf_agent ON informatrons(agent_id,tick);
+CREATE INDEX IF NOT EXISTS idx_memory_agent ON memories(agent_id,tick_created);
+CREATE INDEX IF NOT EXISTS idx_learning_history_agent ON learning_history(agent_id,sequence);
+CREATE INDEX IF NOT EXISTS idx_experience_snapshots_agent ON experience_snapshots(agent_id,version);
 """
 
+APPEND_ONLY = (
+    "events","informatrons","memories","artifacts","learning_examples",
+    "version_history","learning_history","experience_snapshots"
+)
 
 class SocietyDB:
     def __init__(self,path:str|Path):
@@ -56,8 +71,26 @@ class SocietyDB:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=FULL")
         self.conn.executescript(SCHEMA)
-        self._version(VERSION,["append-only chain","experience adaptation","canon verification","epistemic speaker fix","control modes"])
+        self._protect_append_only()
+        self._version(VERSION,[
+            "persistent resume by default",
+            "append-only learning history",
+            "versioned experience snapshots",
+            "experience-state replay verification",
+            "evidence-grounded copilot and co-creation help",
+            "explicit destructive reset only",
+            "deployable bootstrap workflow artifact",
+        ])
         self.conn.commit()
+
+    def _protect_append_only(self):
+        for table in APPEND_ONLY:
+            self.conn.executescript(f"""
+            CREATE TRIGGER IF NOT EXISTS {table}_no_update BEFORE UPDATE ON {table}
+            BEGIN SELECT RAISE(ABORT,'{table} is append-only'); END;
+            CREATE TRIGGER IF NOT EXISTS {table}_no_delete BEFORE DELETE ON {table}
+            BEGIN SELECT RAISE(ABORT,'{table} is append-only'); END;
+            """)
 
     def close(self):
         self.conn.commit(); self.conn.close()
@@ -70,13 +103,21 @@ class SocietyDB:
         vh=_hash(canonical_json(core))
         self.conn.execute("INSERT INTO version_history(version,change_json,previous_version_hash,version_hash) VALUES(?,?,?,?)",(version,canonical_json(changes),previous,vh))
 
+    def set_meta(self,key,value):
+        self.conn.execute("INSERT INTO simulation_meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(key,str(value)))
+
+    def get_meta(self,key,default=None):
+        row=self.conn.execute("SELECT value FROM simulation_meta WHERE key=?",(key,)).fetchone()
+        return row[0] if row else default
+
     def add_agent(self,p):
-        self.conn.execute("INSERT INTO agents(agent_id,profile_json) VALUES(?,?)",(p.agent_id,canonical_json(asdict(p))))
-        self.conn.execute("INSERT INTO agent_learning_state(agent_id) VALUES(?)",(p.agent_id,))
+        self.conn.execute("INSERT OR IGNORE INTO agents(agent_id,profile_json) VALUES(?,?)",(p.agent_id,canonical_json(asdict(p))))
+        self.conn.execute("INSERT OR IGNORE INTO agent_learning_state(agent_id) VALUES(?)",(p.agent_id,))
 
     def add_schedule(self,aid,role):
-        blocks=[(0,0,7,"sleep/home","home"),(1,7,9,"morning","home"),(2,9,17,f"work:{role}",f"work:{role}"),(3,17,21,"social/free_time","town"),(4,21,24,"home/reflection","home")]
-        self.conn.executemany("INSERT INTO schedules VALUES(?,?,?,?,?,?)",[(aid,*b) for b in blocks])
+        zone=f"work_zone_{(int(aid[1:])-1)%5}"
+        blocks=[(0,0,7,"sleep/home","home"),(1,7,9,"morning","home"),(2,9,17,f"work:{role}",zone),(3,17,21,"social/free_time","town"),(4,21,24,"home/reflection","home")]
+        self.conn.executemany("INSERT OR IGNORE INTO schedules VALUES(?,?,?,?,?,?)",[(aid,*b) for b in blocks])
 
     def location(self,aid,hour):
         row=self.conn.execute("SELECT location FROM schedules WHERE agent_id=? AND start_hour<=? AND end_hour>? ORDER BY block_order LIMIT 1",(aid,hour,hour)).fetchone()
@@ -137,3 +178,45 @@ class SocietyDB:
     def audio(self,eid,speaker,transcript):
         digest=_hash(transcript); aid="AUD-"+_hash(eid+digest)[:20]
         self.conn.execute("INSERT OR IGNORE INTO audio_segments(audio_id,event_id,speaker_agent_id,transcript,sha256) VALUES(?,?,?,?,?)",(aid,eid,speaker,transcript,digest)); return aid
+
+    def append_learning_history(self,aid,tick,day,payload,source_event_id=None):
+        row=self.conn.execute("SELECT sequence,entry_hash FROM learning_history ORDER BY sequence DESC LIMIT 1").fetchone()
+        sequence=(row[0]+1) if row else 1
+        previous=row[1] if row else "GENESIS"
+        core={"sequence":sequence,"agent_id":aid,"tick":int(tick),"day":int(day),"source_event_id":source_event_id,"payload":payload,"previous_hash":previous}
+        entry_hash=_hash(canonical_json(core)); hid="LH-"+entry_hash[:24]
+        self.conn.execute("INSERT INTO learning_history(history_id,agent_id,tick,day,source_event_id,payload_json,previous_hash,entry_hash) VALUES(?,?,?,?,?,?,?,?)",(hid,aid,tick,day,source_event_id,canonical_json(payload),previous,entry_hash))
+        return hid
+
+    def verify_learning_history(self):
+        previous="GENESIS"; expected=1
+        rows=self.conn.execute("SELECT sequence,history_id,agent_id,tick,day,source_event_id,payload_json,previous_hash,entry_hash FROM learning_history ORDER BY sequence").fetchall()
+        for sequence,hid,aid,tick,day,source_event_id,payload_json,prev,entry_hash in rows:
+            core={"sequence":sequence,"agent_id":aid,"tick":tick,"day":day,"source_event_id":source_event_id,"payload":json.loads(payload_json),"previous_hash":prev}
+            actual=_hash(canonical_json(core))
+            if sequence!=expected or prev!=previous or actual!=entry_hash or hid!="LH-"+actual[:24]: return False
+            previous=entry_hash; expected+=1
+        return True
+
+    def experience_snapshot(self,aid,tick,day,state):
+        row=self.conn.execute("SELECT version,snapshot_hash FROM experience_snapshots WHERE agent_id=? ORDER BY version DESC LIMIT 1",(aid,)).fetchone()
+        version=(row[0]+1) if row else 1
+        previous=row[1] if row else "GENESIS"
+        count=self.conn.execute("SELECT COUNT(*) FROM learning_history WHERE agent_id=?",(aid,)).fetchone()[0]
+        core={"agent_id":aid,"version":version,"tick":int(tick),"day":int(day),"state":state,"source_history_count":count,"previous_snapshot_hash":previous}
+        snapshot_hash=_hash(canonical_json(core)); sid=f"XS-{aid}-{version:04d}-{snapshot_hash[:12]}"
+        self.conn.execute("INSERT INTO experience_snapshots VALUES(?,?,?,?,?,?,?,?,?)",(sid,aid,version,tick,day,canonical_json(state),count,previous,snapshot_hash))
+        self.conn.execute("UPDATE agents SET learning_version=? WHERE agent_id=?",(version,aid))
+        return {"snapshot_id":sid,"version":version,"snapshot_hash":snapshot_hash,"source_history_count":count}
+
+    def verify_experience_snapshots(self,aid=None):
+        aids=[aid] if aid else [r[0] for r in self.conn.execute("SELECT DISTINCT agent_id FROM experience_snapshots ORDER BY agent_id")]
+        for agent_id in aids:
+            previous="GENESIS"; expected=1
+            rows=self.conn.execute("SELECT snapshot_id,version,tick,day,state_json,source_history_count,previous_snapshot_hash,snapshot_hash FROM experience_snapshots WHERE agent_id=? ORDER BY version",(agent_id,)).fetchall()
+            for sid,version,tick,day,state_json,count,prev,snapshot_hash in rows:
+                core={"agent_id":agent_id,"version":version,"tick":tick,"day":day,"state":json.loads(state_json),"source_history_count":count,"previous_snapshot_hash":prev}
+                actual=_hash(canonical_json(core))
+                if version!=expected or prev!=previous or actual!=snapshot_hash or not sid.startswith(f"XS-{agent_id}-{version:04d}-"): return False
+                previous=snapshot_hash; expected+=1
+        return True

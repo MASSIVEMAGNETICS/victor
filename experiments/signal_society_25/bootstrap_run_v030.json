@@ -1,0 +1,34 @@
+{
+  "version": "0.3.0",
+  "local_verification": {
+    "tests_passed": 15,
+    "tests_failed": 0,
+    "fresh_run": {
+      "days": 5,
+      "ticks": 170,
+      "events": 368,
+      "learning_history": 213,
+      "chronos_valid": true,
+      "learning_history_valid": true,
+      "learning_replay_matches": true
+    },
+    "cold_resume": {
+      "days": 6,
+      "ticks": 200,
+      "events": 432,
+      "learning_history": 248,
+      "chronos_valid": true,
+      "learning_history_valid": true,
+      "learning_replay_matches": true
+    },
+    "experience_bootstrap": {
+      "snapshots_created": 25,
+      "snapshot_chain_valid": true,
+      "learning_history_valid": true,
+      "learning_replay_matches": true,
+      "copilot_status": "READY",
+      "copilot_evidence_items": 5
+    }
+  },
+  "boundary": "Experience adaptation is explicit/replayable state; no ungated foundation-model self-training."
+}

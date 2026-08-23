@@ -6,13 +6,14 @@ on:
       - 'experiments/signal_society_25/**'
       - '.github/workflows/signal-society-25.yml'
   push:
+    branches: ['ai-algorithms-v2']
     paths:
       - 'experiments/signal_society_25/**'
       - '.github/workflows/signal-society-25.yml'
   workflow_dispatch:
 
 jobs:
-  verify:
+  verify-bootstrap-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,15 +23,21 @@ jobs:
       - name: Unit and integrity tests
         working-directory: experiments/signal_society_25
         run: python -m unittest discover -s tests -v
-      - name: Seeded smoke run
+      - name: Fresh seeded smoke run
         working-directory: experiments/signal_society_25
-        run: python run.py --db signal.db --days 5 --interactions-per-day 8 --groups-per-day 1 > signal_metrics.json
+        run: |
+          mkdir -p deployment
+          python run.py --fresh --db deployment/signal.db --days 5 --interactions-per-day 8 --groups-per-day 1 --seed-mode signal --verify-learning-replay > deployment/fresh_metrics.json
+      - name: Cold resume same society
+        working-directory: experiments/signal_society_25
+        run: python run.py --db deployment/signal.db --days 1 --interactions-per-day 4 --groups-per-day 1 --verify-learning-replay > deployment/resume_metrics.json
+      - name: Bootstrap experience snapshots
+        working-directory: experiments/signal_society_25
+        run: python bootstrap_experience.py --db deployment/signal.db --agent A14 --objective "What have I learned?" --parent-artifact ART-SEED-001 > deployment/experience_bootstrap.json
       - name: A/B control run
         working-directory: experiments/signal_society_25
-        run: python run_control.py > control_metrics.json
+        run: python run_control.py > deployment/control_metrics.json
       - uses: actions/upload-artifact@v4
         with:
-          name: signal-society-25-v0.2.0
-          path: |
-            experiments/signal_society_25/signal_metrics.json
-            experiments/signal_society_25/control_metrics.json
+          name: signal-society-25-v0.3.0
+          path: experiments/signal_society_25/deployment/
