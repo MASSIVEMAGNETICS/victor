@@ -1,0 +1,36 @@
+name: Signal Society 25 CI
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/signal_society_25/**'
+      - '.github/workflows/signal-society-25.yml'
+  push:
+    paths:
+      - 'experiments/signal_society_25/**'
+      - '.github/workflows/signal-society-25.yml'
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Unit and integrity tests
+        working-directory: experiments/signal_society_25
+        run: python -m unittest discover -s tests -v
+      - name: Seeded smoke run
+        working-directory: experiments/signal_society_25
+        run: python run.py --db signal.db --days 5 --interactions-per-day 8 --groups-per-day 1 > signal_metrics.json
+      - name: A/B control run
+        working-directory: experiments/signal_society_25
+        run: python run_control.py > control_metrics.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: signal-society-25-v0.2.0
+          path: |
+            experiments/signal_society_25/signal_metrics.json
+            experiments/signal_society_25/control_metrics.json

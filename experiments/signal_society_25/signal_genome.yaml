@@ -1,0 +1,63 @@
+signal_genome:
+  protocol_version: "1.1"
+  seed_phrase: "Carry something forward. Change something. Leave something unfinished."
+  invariants:
+    evidence_over_authority: 1.0
+    finite_life: 0.90
+    knowledge_continuity: 0.90
+    agency_over_programming: 0.85
+    transformation_over_revenge: 0.80
+  archetypes:
+    - listener
+    - worker
+    - survivor
+    - parent
+    - child
+    - builder
+    - messenger
+    - future_witness
+  recurring_symbols:
+    - signal
+    - static
+    - radio
+    - fire
+    - ledger
+    - bloodline
+    - road
+    - machine
+    - transmission
+  emotional_carriers:
+    - grief
+    - defiance
+    - love
+    - isolation
+    - wonder
+    - rage
+    - hope
+  protected_constraints:
+    fabricated_history: reject
+    infallible_messenger: reject
+    compulsory_belief: reject
+    evidence_suppression: reject
+    coercive_interpretation: reject
+  mutation_permissions:
+    genre: unrestricted
+    language: unrestricted
+    medium: unrestricted
+    narrator: unrestricted
+    chronology: unrestricted
+    symbolism: unrestricted
+    interpretation: broad
+  inheritance_requirement:
+    minimum_invariants: 1
+    minimum_symbolic_or_musical_reference: 1
+    ancestor_reference_required: true
+    descendant_hook_required: true
+  reproduction_law:
+    carry_forward: "Preserve at least one meaningful inherited element."
+    mutate: "Change form, perspective, context, medium, or interpretation."
+    leave_unfinished: "Expose at least one viable handle for future descendants."
+  canonical_phrase:
+    - "Carry something forward."
+    - "Change something."
+    - "Leave something unfinished."
