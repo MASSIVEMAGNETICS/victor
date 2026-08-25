@@ -1,0 +1,32 @@
+{
+  "artifact": "Victor-GEV",
+  "version": "1.0.0",
+  "release_date": "2026-08-25",
+  "status": "FROZEN_CANONICAL_IMPLEMENTED_PACKAGED_ACCEPTANCE_TESTED",
+  "official_asset": "Victor-GEV-v1.0.0.zip",
+  "official_asset_sha256": "e81f5f5ab883ba283e3216c13d50483e31f104d53d2c638333cacc74f945e693",
+  "victor_ancestry": {
+    "repository": "MASSIVEMAGNETICS/victor",
+    "experience_transition_merge_commit": "7e2db52e74031975942f9eec45f10facc4c9c750"
+  },
+  "gev_upstream": {
+    "repository": "bilawalsidhu/gods-eye-view",
+    "tested_commit": "880a672b5e16ad3e41d318801d3a5203f9201923",
+    "code_license": "MIT",
+    "third_party_data_notice": "Provider datasets/models retain independent terms."
+  },
+  "verification_claims": {
+    "package_acceptance_suite": "8/8 PASS (frozen release evidence)",
+    "doctor": "PASS (frozen release evidence)",
+    "manifest": "PASS (frozen release evidence)",
+    "gev_overlay_javascript_syntax": "PASS (frozen release evidence)",
+    "web_ui_javascript_syntax": "PASS (frozen release evidence)",
+    "full_google_photorealistic_3d_runtime": "NOT_EMPIRICALLY_VERIFIED"
+  },
+  "distribution_boundary": {
+    "full_featured_development": "private Bando GDXI repository",
+    "public_proof_of_concept": "independent reduced GDXI demo repository",
+    "public_demo_must_not_be_derived_from_private_git_history": true
+  },
+  "immutability_rule": "v1.0.0 semantics must not be silently modified; future changes require an explicit version."
+}
