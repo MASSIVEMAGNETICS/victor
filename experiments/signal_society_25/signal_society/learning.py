@@ -4,6 +4,12 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from .experience_transition import (
+    build_experience_transition,
+    verify_transition_history,
+)
+
+
 @dataclass(frozen=True)
 class Adaptation:
     agent_id: str
@@ -13,16 +19,27 @@ class Adaptation:
     question_bias: float
     adaptation_score: float
 
+
 class ExperienceLearner:
     """Bounded evidence-driven learner with replayable adaptation history.
 
     Online adaptation changes explicit policy state, not hidden foundation-model
-    weights. Every adaptation is appended to learning_history and may be frozen
-    into a versioned experience snapshot.
+    weights. Every consequential adaptation is serialized as the canonical
+    ExperienceTransition contract inside append-only learning_history and may be
+    frozen into a versioned experience snapshot.
     """
 
     def __init__(self, db):
         self.db = db
+
+    @staticmethod
+    def _state_dict(row) -> dict[str, Any]:
+        exp,total,correct,share,qbias,adapt = row
+        return {
+            "experience_count":int(exp),"prediction_total":int(total),
+            "prediction_correct":int(correct),"share_bias":float(share),
+            "question_bias":float(qbias),"adaptation_score":float(adapt),
+        }
 
     def record_experience(
         self,
@@ -42,11 +59,7 @@ class ExperienceLearner:
             self.db.conn.execute("INSERT OR IGNORE INTO agent_learning_state(agent_id) VALUES(?)",(aid,))
             row=(0,0,0,0.0,0.0,0.0)
         exp,total,correct,share,qbias,adapt = row
-        before={
-            "experience_count":int(exp),"prediction_total":int(total),
-            "prediction_correct":int(correct),"share_bias":float(share),
-            "question_bias":float(qbias),"adaptation_score":float(adapt),
-        }
+        before=self._state_dict(row)
         exp += 1
         surprise=max(0.0,min(1.0,float(surprise)))
         if prediction_correct is not None:
@@ -63,32 +76,40 @@ class ExperienceLearner:
             adapt=min(1.0,adapt*0.97+0.03*((error+surprise)/2.0))
         else:
             adapt=min(1.0,adapt*0.995+0.005*surprise)
-        after={
-            "experience_count":int(exp),"prediction_total":int(total),
-            "prediction_correct":int(correct),"share_bias":float(share),
-            "question_bias":float(qbias),"adaptation_score":float(adapt),
-        }
+        after=self._state_dict((exp,total,correct,share,qbias,adapt))
+
+        transition=build_experience_transition(
+            db=self.db,
+            aid=aid,
+            tick=tick,
+            day=day,
+            before=before,
+            after=after,
+            prediction_correct=prediction_correct,
+            surprise=surprise,
+            source_event_id=source_event_id,
+        )
+
         self.db.conn.execute(
             "UPDATE agent_learning_state SET experience_count=?,prediction_total=?,prediction_correct=?,share_bias=?,question_bias=?,adaptation_score=?,last_tick=? WHERE agent_id=?",
             (exp,total,correct,share,qbias,adapt,tick,aid),
         )
-        payload={
-            "before":before,"after":after,"prediction_correct":prediction_correct,
-            "surprise":surprise,
-        }
-        self.db.append_learning_history(aid,tick,day,payload,source_event_id)
+        self.db.append_learning_history(aid,tick,day,transition,source_event_id)
         self.db.event(tick,day,"learning.adapted",aid,None,{
             "source_event_id":source_event_id,
+            "transition_id":transition["transition_id"],
+            "prior_state_ref":transition["prior_state_ref"],
             "after":after,
             "prediction_correct":prediction_correct,
             "surprise":surprise,
         })
 
     def state(self, aid: str) -> Adaptation:
-        exp,total,correct,share,qbias,adapt = self.db.conn.execute(
+        row=self.db.conn.execute(
             "SELECT experience_count,prediction_total,prediction_correct,share_bias,question_bias,adaptation_score FROM agent_learning_state WHERE agent_id=?",
             (aid,),
         ).fetchone()
+        exp,total,correct,share,qbias,adapt=row
         accuracy=(correct/total) if total else None
         return Adaptation(aid,exp,accuracy,share,qbias,adapt)
 
@@ -99,7 +120,11 @@ class ExperienceLearner:
         ).fetchone()
         if not row:
             return Adaptation(aid,0,None,0.0,0.0,0.0)
-        after=json.loads(row[0])["after"]
+        payload=json.loads(row[0])
+        if isinstance(payload,dict) and payload.get("transition_id"):
+            after=payload["actual_outcome"]["learning_state"]
+        else:
+            after=payload["after"]
         total=int(after["prediction_total"]); correct=int(after["prediction_correct"])
         return Adaptation(
             aid,int(after["experience_count"]),
@@ -110,6 +135,22 @@ class ExperienceLearner:
 
     def replay_matches_materialized(self, aid: str) -> bool:
         return self.replay_state(aid) == self.state(aid)
+
+    def canonical_history_valid(self, aid: str) -> bool:
+        state=self.state(aid)
+        row=self.db.conn.execute(
+            "SELECT prediction_total,prediction_correct FROM agent_learning_state WHERE agent_id=?",
+            (aid,),
+        ).fetchone()
+        materialized={
+            "experience_count":state.experience_count,
+            "prediction_total":int(row[0]),
+            "prediction_correct":int(row[1]),
+            "share_bias":state.share_bias,
+            "question_bias":state.question_bias,
+            "adaptation_score":state.adaptation_score,
+        }
+        return verify_transition_history(self.db,aid,materialized)
 
     def snapshot(self, aid: str, tick: int, day: int) -> dict[str, Any]:
         state=asdict(self.state(aid))
@@ -172,6 +213,7 @@ class ExperienceLearner:
                 "question_bias": state.question_bias,
                 "adaptation_score": state.adaptation_score,
                 "replay_matches_materialized": self.replay_matches_materialized(aid),
+                "canonical_history_valid": self.canonical_history_valid(aid),
             },
         }
 
