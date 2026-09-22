@@ -103,6 +103,45 @@ def test_low_utility_spawn_is_denied(tmp_path: Path) -> None:
     assert "utility_below_threshold" in text
 
 
+@pytest.mark.parametrize("field,value", [("max_cost", float("nan")), ("max_cost", float("inf")), ("spawn_threshold", float("nan"))])
+def test_budget_rejects_nonfinite_limits(field: str, value: float) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        Budget(**{field: value})
+
+
+@pytest.mark.parametrize("value", [-1.0, 0.0, float("nan"), float("inf")])
+def test_task_rejects_nonpositive_or_nonfinite_cost(value: float) -> None:
+    with pytest.raises(ValueError, match="estimated_cost"):
+        CognitiveTask("task", "causal", "why?", estimated_cost=value)
+
+
+@pytest.mark.parametrize("value", [-1.0, float("nan"), float("inf")])
+def test_spawn_rejects_negative_or_nonfinite_expected_value(value: float) -> None:
+    with pytest.raises(ValueError, match="expected_value"):
+        SpawnRequest("causal", "why?", expected_value=value)
+
+
+@pytest.mark.parametrize("value", [-1.0, 0.0, float("nan"), float("inf")])
+def test_spawn_rejects_nonpositive_or_nonfinite_cost(value: float) -> None:
+    with pytest.raises(ValueError, match="estimated_cost"):
+        SpawnRequest("causal", "why?", expected_value=1.0, estimated_cost=value)
+
+
+def test_nonfinite_confidence_reward_and_weight_config_fail_closed(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        CognitiveResult("task", "causal", "answer", float("nan"))
+    with pytest.raises(ValueError, match="min_weight"):
+        CognitiveEcology(tmp_path / "bad-weight.jsonl", min_weight=float("nan"))
+
+    eco = CognitiveEcology(tmp_path / "ledger.jsonl")
+    with pytest.raises(ValueError, match="finite"):
+        eco.record_outcome(
+            CognitiveResult("task", "causal", "answer", 0.5),
+            reward=float("inf"),
+            problem_family="test",
+        )
+
+
 def test_verified_outcomes_change_future_routing_and_replay(tmp_path: Path) -> None:
     ledger = tmp_path / "ledger.jsonl"
     eco = CognitiveEcology(ledger)

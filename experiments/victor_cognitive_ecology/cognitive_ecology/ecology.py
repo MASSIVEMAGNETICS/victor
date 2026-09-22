@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from hashlib import sha256
 import json
+from math import isfinite
 from pathlib import Path
 import re
 from typing import Any, Callable, Iterable, Mapping
@@ -17,7 +18,31 @@ def _digest(value: Any) -> str:
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
-    return max(lo, min(hi, float(value)))
+    value = _finite_float(value, "value")
+    return max(lo, min(hi, value))
+
+
+def _finite_float(value: Any, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise TypeError(f"{name} must be a finite number")
+    converted = float(value)
+    if not isfinite(converted):
+        raise ValueError(f"{name} must be finite")
+    return converted
+
+
+def _positive_float(value: Any, name: str) -> float:
+    converted = _finite_float(value, name)
+    if converted <= 0:
+        raise ValueError(f"{name} must be > 0")
+    return converted
+
+
+def _nonnegative_float(value: Any, name: str) -> float:
+    converted = _finite_float(value, name)
+    if converted < 0:
+        raise ValueError(f"{name} must be >= 0")
+    return converted
 
 
 def _tokens(text: str) -> set[str]:
@@ -32,14 +57,16 @@ class Budget:
     spawn_threshold: float = 0.75
 
     def __post_init__(self) -> None:
+        if isinstance(self.max_processes, bool) or not isinstance(self.max_processes, int):
+            raise TypeError("max_processes must be an integer")
+        if isinstance(self.max_depth, bool) or not isinstance(self.max_depth, int):
+            raise TypeError("max_depth must be an integer")
         if self.max_processes < 1:
             raise ValueError("max_processes must be >= 1")
         if self.max_depth < 0:
             raise ValueError("max_depth must be >= 0")
-        if self.max_cost <= 0:
-            raise ValueError("max_cost must be > 0")
-        if self.spawn_threshold <= 0:
-            raise ValueError("spawn_threshold must be > 0")
+        object.__setattr__(self, "max_cost", _positive_float(self.max_cost, "max_cost"))
+        object.__setattr__(self, "spawn_threshold", _positive_float(self.spawn_threshold, "spawn_threshold"))
 
 
 @dataclass(frozen=True)
@@ -49,6 +76,14 @@ class SpawnRequest:
     expected_value: float
     estimated_cost: float = 1.0
     rationale: str = ""
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.process_kind, str) or not self.process_kind.strip():
+            raise ValueError("process_kind is required")
+        if not isinstance(self.question, str) or not self.question.strip():
+            raise ValueError("question is required")
+        object.__setattr__(self, "expected_value", _nonnegative_float(self.expected_value, "expected_value"))
+        object.__setattr__(self, "estimated_cost", _positive_float(self.estimated_cost, "estimated_cost"))
 
     @property
     def utility_ratio(self) -> float:
@@ -64,6 +99,19 @@ class CognitiveTask:
     parent_task_id: str | None = None
     depth: int = 0
     estimated_cost: float = 1.0
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.task_id, str) or not self.task_id.strip():
+            raise ValueError("task_id is required")
+        if not isinstance(self.process_kind, str) or not self.process_kind.strip():
+            raise ValueError("process_kind is required")
+        if not isinstance(self.question, str) or not self.question.strip():
+            raise ValueError("question is required")
+        if isinstance(self.depth, bool) or not isinstance(self.depth, int):
+            raise TypeError("depth must be an integer")
+        if self.depth < 0:
+            raise ValueError("depth must be >= 0")
+        object.__setattr__(self, "estimated_cost", _positive_float(self.estimated_cost, "estimated_cost"))
 
 
 @dataclass(frozen=True)
@@ -145,8 +193,8 @@ class CognitiveEcology:
         self.ledger_path.parent.mkdir(parents=True, exist_ok=True)
         self.budget = budget or Budget()
         self.learning_rate = _clamp(learning_rate, 0.01, 1.0)
-        self.min_weight = float(min_weight)
-        self.max_weight = float(max_weight)
+        self.min_weight = _positive_float(min_weight, "min_weight")
+        self.max_weight = _positive_float(max_weight, "max_weight")
         if self.min_weight <= 0 or self.max_weight < self.min_weight:
             raise ValueError("invalid routing weight bounds")
         self.resonance_threshold = _clamp(resonance_threshold, 0.0, 1.0)
