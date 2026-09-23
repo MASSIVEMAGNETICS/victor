@@ -205,3 +205,38 @@ def test_ledger_tampering_fails_closed(tmp_path: Path) -> None:
     assert eco.verify_ledger() is False
     with pytest.raises(ValueError, match="ledger failed verification"):
         eco._append("x", {})
+
+
+def test_rejected_outcome_receipt_does_not_advance_learning(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger.jsonl"
+    eco = CognitiveEcology(ledger)
+    result = CognitiveResult("task", "causal", "answer", 0.9)
+    eco.record_outcome(result, reward=0.8, problem_family="baseline")
+    before = eco.stats["causal"]
+
+    rows = ledger.read_text().splitlines()
+    row = json.loads(rows[0])
+    row["payload"]["reward"] = 0.1
+    rows[0] = json.dumps(row)
+    ledger.write_text("\n".join(rows) + "\n")
+
+    with pytest.raises(ValueError, match="ledger failed verification"):
+        eco.record_outcome(result, reward=1.0, problem_family="must-not-commit")
+
+    assert eco.stats["causal"] is before
+    assert eco.stats["causal"].runs == 1
+    assert eco.stats["causal"].distinct_problem_families == {"baseline"}
+
+
+def test_failed_outcome_write_does_not_advance_learning(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    eco = CognitiveEcology(tmp_path / "ledger.jsonl")
+    result = CognitiveResult("task", "causal", "answer", 0.9)
+
+    def fail_append(kind: str, payload: object) -> None:
+        raise OSError("injected ledger write failure")
+
+    monkeypatch.setattr(eco, "_append", fail_append)
+    with pytest.raises(OSError, match="injected ledger write failure"):
+        eco.record_outcome(result, reward=1.0, problem_family="must-not-commit")
+
+    assert "causal" not in eco.stats

@@ -489,7 +489,7 @@ class CognitiveEcology:
         evidence_refs: Iterable[str] = (),
     ) -> ProcessStats:
         reward = _clamp(reward, 0.0, 1.0)
-        stats = self._apply_learning(result.process_kind, reward, problem_family, persist=False)
+        stats = self._project_learning(result.process_kind, reward, problem_family)
         self._append(
             "process.outcome",
             {
@@ -503,16 +503,29 @@ class CognitiveEcology:
                 "mean_reward": stats.mean_reward,
             },
         )
+        self._stats[result.process_kind] = stats
         return stats
 
-    def _apply_learning(self, process_kind: str, reward: float, problem_family: str, *, persist: bool) -> ProcessStats:
-        stats = self._stats.setdefault(process_kind, ProcessStats())
-        stats.runs += 1
-        stats.reward_sum += reward
-        stats.useful_runs += int(reward >= 0.70)
-        stats.distinct_problem_families.add(problem_family)
+    def _project_learning(self, process_kind: str, reward: float, problem_family: str) -> ProcessStats:
+        current = self._stats.get(process_kind, ProcessStats())
+        projected = ProcessStats(
+            runs=current.runs + 1,
+            reward_sum=current.reward_sum + reward,
+            weight=current.weight,
+            useful_runs=current.useful_runs + int(reward >= 0.70),
+            distinct_problem_families={*current.distinct_problem_families, problem_family},
+        )
         centered = reward - 0.5
-        stats.weight = _clamp(stats.weight + self.learning_rate * centered, self.min_weight, self.max_weight)
+        projected.weight = _clamp(
+            projected.weight + self.learning_rate * centered,
+            self.min_weight,
+            self.max_weight,
+        )
+        return projected
+
+    def _apply_learning(self, process_kind: str, reward: float, problem_family: str, *, persist: bool) -> ProcessStats:
+        stats = self._project_learning(process_kind, reward, problem_family)
+        self._stats[process_kind] = stats
         return stats
 
     def promotion_proposal(
