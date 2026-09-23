@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+import fcntl
 from hashlib import sha256
 import json
 from math import isfinite
+import os
 from pathlib import Path
 import re
+from contextlib import contextmanager
 from typing import Any, Callable, Iterable, Mapping
 
 
@@ -218,7 +221,24 @@ class CognitiveEcology:
     def routing_weight(self, process_kind: str) -> float:
         return self._stats.get(process_kind, ProcessStats()).weight
 
-    def verify_ledger(self) -> bool:
+    @property
+    def _lock_path(self) -> Path:
+        return self.ledger_path.with_name(self.ledger_path.name + ".lock")
+
+    @contextmanager
+    def _ledger_lock(self, *, exclusive: bool) -> Iterable[None]:
+        flags = os.O_RDWR | os.O_CREAT
+        if hasattr(os, "O_CLOEXEC"):
+            flags |= os.O_CLOEXEC
+        descriptor = os.open(self._lock_path, flags, 0o600)
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
+
+    def _verify_ledger_unlocked(self) -> bool:
         if not self.ledger_path.exists():
             return True
         previous = "GENESIS"
@@ -243,47 +263,55 @@ class CognitiveEcology:
             sequence += 1
         return True
 
+    def verify_ledger(self) -> bool:
+        with self._ledger_lock(exclusive=False):
+            return self._verify_ledger_unlocked()
+
     def _append(self, kind: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
-        if not self.verify_ledger():
-            raise ValueError("cognitive ecology ledger failed verification")
-        previous = "GENESIS"
-        sequence = 0
-        if self.ledger_path.exists():
-            for line in self.ledger_path.read_text(encoding="utf-8").splitlines():
-                if line.strip():
-                    row = json.loads(line)
-                    sequence = int(row["sequence"])
-                    previous = str(row["receipt_hash"])
-        core = {
-            "sequence": sequence + 1,
-            "ledger_version": self.LEDGER_VERSION,
-            "kind": kind,
-            "payload": dict(payload),
-            "previous_receipt_hash": previous,
-        }
-        row = {**core, "receipt_hash": _digest(core)}
-        with self.ledger_path.open("a", encoding="utf-8") as handle:
-            handle.write(_canonical(row) + "\n")
-        return row
+        with self._ledger_lock(exclusive=True):
+            if not self._verify_ledger_unlocked():
+                raise ValueError("cognitive ecology ledger failed verification")
+            previous = "GENESIS"
+            sequence = 0
+            if self.ledger_path.exists():
+                for line in self.ledger_path.read_text(encoding="utf-8").splitlines():
+                    if line.strip():
+                        row = json.loads(line)
+                        sequence = int(row["sequence"])
+                        previous = str(row["receipt_hash"])
+            core = {
+                "sequence": sequence + 1,
+                "ledger_version": self.LEDGER_VERSION,
+                "kind": kind,
+                "payload": dict(payload),
+                "previous_receipt_hash": previous,
+            }
+            row = {**core, "receipt_hash": _digest(core)}
+            with self.ledger_path.open("a", encoding="utf-8") as handle:
+                handle.write(_canonical(row) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            return row
 
     def _replay_ledger(self) -> None:
-        if not self.verify_ledger():
-            raise ValueError("cannot replay invalid cognitive ecology ledger")
-        if not self.ledger_path.exists():
-            return
-        for line in self.ledger_path.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            row = json.loads(line)
-            if row.get("kind") != "process.outcome":
-                continue
-            payload = row["payload"]
-            self._apply_learning(
-                process_kind=str(payload["process_kind"]),
-                reward=float(payload["reward"]),
-                problem_family=str(payload.get("problem_family", "unknown")),
-                persist=False,
-            )
+        with self._ledger_lock(exclusive=False):
+            if not self._verify_ledger_unlocked():
+                raise ValueError("cannot replay invalid cognitive ecology ledger")
+            if not self.ledger_path.exists():
+                return
+            for line in self.ledger_path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                if row.get("kind") != "process.outcome":
+                    continue
+                payload = row["payload"]
+                self._apply_learning(
+                    process_kind=str(payload["process_kind"]),
+                    reward=float(payload["reward"]),
+                    problem_family=str(payload.get("problem_family", "unknown")),
+                    persist=False,
+                )
 
     def route(self, candidate_kinds: Iterable[str], *, limit: int = 4) -> list[str]:
         registered = [k for k in dict.fromkeys(candidate_kinds) if k in self._workers]

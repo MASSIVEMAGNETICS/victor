@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 from pathlib import Path
 
@@ -240,3 +241,39 @@ def test_failed_outcome_write_does_not_advance_learning(tmp_path: Path, monkeypa
         eco.record_outcome(result, reward=1.0, problem_family="must-not-commit")
 
     assert "causal" not in eco.stats
+
+
+def test_concurrent_appends_preserve_one_hash_chain(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger.jsonl"
+    eco = CognitiveEcology(ledger)
+
+    with ThreadPoolExecutor(max_workers=16) as executor:
+        rows = list(executor.map(lambda index: eco._append("concurrent.test", {"index": index}), range(64)))
+
+    assert len({row["receipt_hash"] for row in rows}) == 64
+    assert sorted(row["sequence"] for row in rows) == list(range(1, 65))
+    assert eco.verify_ledger() is True
+
+    persisted = [json.loads(line) for line in ledger.read_text().splitlines()]
+    assert [row["sequence"] for row in persisted] == list(range(1, 65))
+    assert all(
+        row["previous_receipt_hash"] == ("GENESIS" if index == 0 else persisted[index - 1]["receipt_hash"])
+        for index, row in enumerate(persisted)
+    )
+
+
+def test_append_durably_flushes_before_return(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    eco = CognitiveEcology(tmp_path / "ledger.jsonl")
+    flushed: list[int] = []
+    real_fsync = __import__("os").fsync
+
+    def observing_fsync(descriptor: int) -> None:
+        flushed.append(descriptor)
+        real_fsync(descriptor)
+
+    monkeypatch.setattr("cognitive_ecology.ecology.os.fsync", observing_fsync)
+    row = eco._append("durability.test", {"value": 1})
+
+    assert row["sequence"] == 1
+    assert flushed
+    assert eco.verify_ledger() is True
