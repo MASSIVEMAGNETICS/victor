@@ -1,15 +1,24 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
-import fcntl
 from hashlib import sha256
 import json
 from math import isfinite
 import os
 from pathlib import Path
 import re
-from contextlib import contextmanager
 from typing import Any, Callable, Iterable, Mapping
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - exercised on Windows
+    fcntl = None  # type: ignore[assignment]
+
+try:
+    import msvcrt
+except ImportError:  # pragma: no cover - exercised on POSIX
+    msvcrt = None  # type: ignore[assignment]
 
 
 def _canonical(value: Any) -> str:
@@ -232,10 +241,23 @@ class CognitiveEcology:
             flags |= os.O_CLOEXEC
         descriptor = os.open(self._lock_path, flags, 0o600)
         try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+            if fcntl is not None:
+                fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+            elif msvcrt is not None:
+                if os.fstat(descriptor).st_size == 0:
+                    os.write(descriptor, b"\0")
+                    os.fsync(descriptor)
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                msvcrt.locking(descriptor, msvcrt.LK_LOCK, 1)
+            else:  # pragma: no cover - supported CPython platforms expose one
+                raise RuntimeError("no supported ledger locking primitive")
             yield
         finally:
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            if fcntl is not None:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+            elif msvcrt is not None:
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                msvcrt.locking(descriptor, msvcrt.LK_UNLCK, 1)
             os.close(descriptor)
 
     def _verify_ledger_unlocked(self) -> bool:

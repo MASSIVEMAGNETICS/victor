@@ -277,3 +277,32 @@ def test_append_durably_flushes_before_return(tmp_path: Path, monkeypatch: pytes
     assert row["sequence"] == 1
     assert flushed
     assert eco.verify_ledger() is True
+
+
+def test_windows_locking_path_fails_closed_and_unlocks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import cognitive_ecology.ecology as ecology_module
+
+    class FakeMsvcrt:
+        LK_LOCK = 1
+        LK_UNLCK = 2
+        calls: list[tuple[int, int]] = []
+
+        @classmethod
+        def locking(cls, descriptor: int, mode: int, length: int) -> None:
+            assert descriptor >= 0
+            assert length == 1
+            cls.calls.append((mode, length))
+
+    monkeypatch.setattr(ecology_module, "fcntl", None)
+    monkeypatch.setattr(ecology_module, "msvcrt", FakeMsvcrt)
+    eco = CognitiveEcology(tmp_path / "ledger.jsonl")
+    row = eco._append("windows-lock.test", {"value": 1})
+
+    assert row["sequence"] == 1
+    assert FakeMsvcrt.calls == [
+        (FakeMsvcrt.LK_LOCK, 1),
+        (FakeMsvcrt.LK_UNLCK, 1),
+        (FakeMsvcrt.LK_LOCK, 1),
+        (FakeMsvcrt.LK_UNLCK, 1),
+    ]
+    assert eco.verify_ledger() is True
