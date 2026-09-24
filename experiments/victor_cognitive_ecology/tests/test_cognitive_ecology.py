@@ -279,6 +279,27 @@ def test_append_durably_flushes_before_return(tmp_path: Path, monkeypatch: pytes
     assert eco.verify_ledger() is True
 
 
+def test_failed_atomic_replace_preserves_previous_chain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import cognitive_ecology.ecology as ecology_module
+
+    ledger = tmp_path / "ledger.jsonl"
+    eco = CognitiveEcology(ledger)
+    first = eco._append("durability.test", {"value": 1})
+    before = ledger.read_bytes()
+
+    def fail_replace(source: object, destination: object) -> None:
+        raise OSError("injected atomic replace failure")
+
+    monkeypatch.setattr(ecology_module.os, "replace", fail_replace)
+    with pytest.raises(OSError, match="injected atomic replace failure"):
+        eco._append("durability.test", {"value": 2})
+
+    assert ledger.read_bytes() == before
+    assert json.loads(before)["receipt_hash"] == first["receipt_hash"]
+    assert not list(tmp_path.glob(".ledger.jsonl.*.tmp"))
+    assert eco.verify_ledger() is True
+
+
 def test_windows_locking_path_fails_closed_and_unlocks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import cognitive_ecology.ecology as ecology_module
 
