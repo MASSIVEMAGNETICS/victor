@@ -8,6 +8,7 @@ from math import isfinite
 import os
 from pathlib import Path
 import re
+import tempfile
 from typing import Any, Callable, Iterable, Mapping
 
 try:
@@ -289,6 +290,32 @@ class CognitiveEcology:
         with self._ledger_lock(exclusive=False):
             return self._verify_ledger_unlocked()
 
+    def _replace_ledger_unlocked(self, appended_line: str) -> None:
+        """Commit one complete JSONL row through an atomic same-directory replace."""
+        existing = self.ledger_path.read_bytes() if self.ledger_path.exists() else b""
+        separator = b"\n" if existing and not existing.endswith(b"\n") else b""
+        payload = existing + separator + appended_line.encode("utf-8") + b"\n"
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{self.ledger_path.name}.",
+            suffix=".tmp",
+            dir=self.ledger_path.parent,
+        )
+        temporary_path = Path(temporary_name)
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary_path, self.ledger_path)
+            if hasattr(os, "O_DIRECTORY"):
+                directory = os.open(self.ledger_path.parent, os.O_RDONLY | os.O_DIRECTORY)
+                try:
+                    os.fsync(directory)
+                finally:
+                    os.close(directory)
+        finally:
+            temporary_path.unlink(missing_ok=True)
+
     def _append(self, kind: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
         with self._ledger_lock(exclusive=True):
             if not self._verify_ledger_unlocked():
@@ -309,10 +336,7 @@ class CognitiveEcology:
                 "previous_receipt_hash": previous,
             }
             row = {**core, "receipt_hash": _digest(core)}
-            with self.ledger_path.open("a", encoding="utf-8") as handle:
-                handle.write(_canonical(row) + "\n")
-                handle.flush()
-                os.fsync(handle.fileno())
+            self._replace_ledger_unlocked(_canonical(row))
             return row
 
     def _replay_ledger(self) -> None:
