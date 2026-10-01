@@ -1,0 +1,41 @@
+name: Victor Cognitive Ecology
+
+on:
+  pull_request:
+    paths:
+      - 'experiments/victor_cognitive_ecology/**'
+      - '.github/workflows/victor-cognitive-ecology.yml'
+  push:
+    branches:
+      - ai-algorithms-v2
+    paths:
+      - 'experiments/victor_cognitive_ecology/**'
+      - '.github/workflows/victor-cognitive-ecology.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-cognitive-ecology:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: experiments/victor_cognitive_ecology
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Compile
+        run: python -m compileall -q cognitive_ecology tests
+
+      - name: Acceptance suite
+        env:
+          PYTHONPATH: .
+        run: python -m pytest -q
